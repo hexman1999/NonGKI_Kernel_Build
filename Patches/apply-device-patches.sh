@@ -41,6 +41,10 @@ case "$DEVICE_IMPORT" in
         echo "-- Applying LN8K patches..."
         apply_local_patches "$PATCH_ROOT/ln8k"
         echo "CONFIG_CHARGER_LN8000=y" >> "$MAIN_DEFCONFIG"
+        # Disable MODVERSIONS as it conflicts with LTO on 4.14
+        sed -i 's/CONFIG_MODVERSIONS=y/CONFIG_MODVERSIONS=n/g' "$MAIN_DEFCONFIG"
+        echo "CONFIG_MODVERSIONS=n" >> "$MAIN_DEFCONFIG"
+        echo "CONFIG_UNUSED_SYMBOLS=n" >> "$MAIN_DEFCONFIG"
 
         # echo "-- Applying DTBO patches..."
         # apply_local_patches "$PATCH_ROOT/dtbo"
