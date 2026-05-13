@@ -1,0 +1,137 @@
+name: Build Sweet KowSU
+
+on:
+  workflow_dispatch:
+
+env:
+  # Device env
+  DEVICE_NAME : "Redmi Note 10 Pro"
+  DEVICE_CODENAME : "sweet"
+
+  CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
+
+  KERNEL_SOURCE : "https://github.com/PixelOS-Devices/android_kernel_xiaomi_sm6150"
+  KERNEL_BRANCH : "sixteen-qpr2" # Updated to sixteen-qpr2 as requested
+
+  CLANG_SOURCE : "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
+  CLANG_BRANCH : ""
+
+  GCC_GNU : false
+  GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
+  GCC_64_BRANCH : "android12L-release"
+  GCC_32_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
+  GCC_32_BRANCH : "android12L-release"
+
+  DEFCONFIG_SOURCE: ""
+  DEFCONFIG_NAME : "sweet_defconfig"
+  DEFCONFIG_ORIGIN_IMAGE: ""
+  DEFCONFIG_FROM_BOOT: false
+
+  KERNELSU_SOURCE : "https://github.com/KOWX712/KernelSU"
+  KERNELSU_BRANCH : "main"
+
+  KERNELSU_AUTO_GET : "false"
+  KERNELSU_AUTO_FORK : "sukisu"
+
+  SUSFS_ENABLE : true
+  SUSFS_FIXED : false
+
+  AK3_SOURCE : "https://github.com/osm0sis/AnyKernel3.git"
+  AK3_BRANCH : "master"
+
+  BOOT_SOURCE : ""
+
+  NEED_DTBO : false
+  NEED_SAFE_DTBO : false
+
+  ROM_TEXT : "PixelOS"
+
+  # Other env
+  PYTHON_VERSION: "3"
+
+  PACK_METHOD: "Anykernel3"
+  PACK_KMODULES: "false"
+
+  KERNELSU_METHOD: "manual"
+
+  PATCHES_SOURCE: ""
+  PATCHES_BRANCH: ""
+
+  SUSFS_FOLDER_FIXED: ""
+  SUSFS_PATCH_FIXED: ""
+
+  REKERNEL_ENABLE: "false"
+
+  HOOK_METHOD: "inline"
+
+  KERNEL_PATCH: "false"
+
+  KPM_ENABLE: "false"
+  KPM_INLINE: "false"
+  KPM_KPATCH_NEXT: "false"
+  
+  BASEBAND_GUARD_ENABLE: "false"
+  HIDE_STUFF: "false"
+  GENERATE_DTB: "false"
+  GENERATE_CHIP: "qcom"
+  BUILD_DEBUGGER: "false"
+  SKIP_PATCH: "false"
+  BUILD_OTHER_CONFIG: "false"
+  FREE_MORE_SPACE: "false"
+
+jobs:
+  build-kernel:
+    name: Build Kernel
+    runs-on: ubuntu-latest
+    env:
+      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_HARDLINK: "true"
+
+    steps:
+      - name: ⏰ Checkout repository
+        uses: actions/checkout@v6
+
+      - name: ⌛️ Compilation environment preparation
+        uses: ./.github/workflows/build-env
+
+      - name: ⚙️ Get neccssary tools
+        uses: ./.github/workflows/build-ready
+
+      - name: 🪝 Patch Kernel of SUSFS
+        uses: ./.github/workflows/patch-susfs
+
+      - name: 🔗 Patch for no-kprobe
+        uses: ./.github/workflows/patch-no-kprobe
+
+      - name: 🪛 Extra Kernel Options (RiaruModa Patches & Inline Hook)
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          
+          # Setup variables for RiaruModa scripts
+          export DEVICE_IMPORT="sweet" # Using "sweet" to ensure LTO, all LN8K, and KPATCH patches are applied
+          export MAIN_DEFCONFIG="arch/arm64/configs/sweet_defconfig"
+          
+          echo "[+] Applying RiaruModa device patches for $DEVICE_IMPORT..."
+          
+          # Run the device patches script (contains LN8000, LTO, and KPATCH fixes)
+          chmod +x $GITHUB_WORKSPACE/riarumoda/perf_neon-builder/scripts/apply-device-patches.sh
+          bash $GITHUB_WORKSPACE/riarumoda/perf_neon-builder/scripts/apply-device-patches.sh
+          
+          if [[ "${{ env.HOOK_METHOD }}" == "inline" ]]; then
+            echo "[+] Applying SuSFS inline hook patches..."
+            # Note: Patches folder is moved to /tmp/ by build-env action
+            chmod +x /tmp/Patches/susfs_inline_hook_patches.sh
+            bash /tmp/Patches/susfs_inline_hook_patches.sh
+          fi
+        shell: bash
+
+      - name: 🚀 Build Process
+        uses: ./.github/workflows/build-process
+
+      - name: 🔩 Pack Process
+        uses: ./.github/workflows/pack-process
+
+      - name: ✏️ Upload Artifacts
+        uses: ./.github/workflows/upload-files
