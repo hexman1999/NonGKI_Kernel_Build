@@ -29,7 +29,7 @@ env:
   DEFCONFIG_FROM_BOOT: false
 
   KERNELSU_SOURCE : "https://github.com/KOWX712/KernelSU"
-  KERNELSU_BRANCH : "main"
+  KERNELSU_BRANCH : "master"
 
   KERNELSU_AUTO_GET : "false"
   KERNELSU_AUTO_FORK : "sukisu"
