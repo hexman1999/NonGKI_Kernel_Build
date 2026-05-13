@@ -1,0 +1,33 @@
+From 4b89948ec7d610f997dd1dab813897f11f403a06 Mon Sep 17 00:00:00 2001
+From: Woody Lin <woodylin@google.com>
+Date: Tue, 19 Jun 2018 06:41:42 +0000
+Subject: [PATCH] build-dtbo: Support base dtbs which located in foreign folder
+
+The temp output file path of command `DTC_OVERLAY_TEST' is
+$(dot-target).<related-path-to-base_dtb>.tmp. That is, when
+<related-path-to-base_dtb> has ```/''' included (e.g.:
+../vendor/chipset-ver.xyz.dtb), the `DTC_OVERLAY_TEST' might return fail
+because destination dir is yet created for writing the output file.
+
+This change substitutes all the ```/''' in <related-path-to-base_dtb>
+into ```-''' to fix this problem.
+
+Change-Id: I921e41982f11ba1d95668849f28a74370ed6700c
+Signed-off-by: Woody Lin <woodylin@google.com>
+---
+ scripts/Makefile.dtbo | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/Makefile.dtbo b/scripts/Makefile.dtbo
+index d7938c336e25..0fb20fe8350b 100644
+--- a/scripts/Makefile.dtbo
++++ b/scripts/Makefile.dtbo
+@@ -14,7 +14,7 @@ cmd_dtbo_verify = $(foreach m,\
+ 	$(addprefix $(obj)/,$($(@F)-base)),\
+ 		$(if $(m),\
+ 			$(DTC_OVERLAY_TEST) $(m) $@ \
+-			$(dot-target).$(patsubst $(obj)/%.dtb,%,$(m)).tmp;))\
++			$(dot-target).$(subst /,-,$(patsubst $(obj)/%.dtb,%,$(m))).tmp;))\
+ 			true
+ else
+ cmd_dtbo_verify = true

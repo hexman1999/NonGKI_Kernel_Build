@@ -1,0 +1,68 @@
+From 31f4577af3f8255ae503a5b30d8f68906edde85f Mon Sep 17 00:00:00 2001
+From: Jebaitedneko <Jebaitedneko@gmail.com>
+Date: Thu, 29 Jul 2021 20:05:35 +0300
+Subject: [PATCH] arm64: generate dtb.img from dtbs
+
+Change-Id: I0e8bfaeb3dcae97172bb906c185145ec5c199c8a
+---
+ arch/arm64/Makefile        | 6 ++++++
+ arch/arm64/boot/.gitignore | 1 +
+ arch/arm64/boot/Makefile   | 5 ++++-
+ 3 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/Makefile b/arch/arm64/Makefile
+index cfd2a5825f54..62aeff75572f 100644
+--- a/arch/arm64/Makefile
++++ b/arch/arm64/Makefile
+@@ -179,6 +179,8 @@ KBUILD_DTBS	:= dtbs
+ 
+ KBUILD_DTBO_IMG := dtbo.img
+ 
++KBUILD_DTB_IMG := dtb.img
++
+ ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
+ export DTC_FLAGS := -@
+ endif
+@@ -216,6 +218,10 @@ $(KBUILD_DTBO_IMG): dtbs
+ 	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
+ 
+ all: $(KBUILD_DTBO_IMG)
++$(KBUILD_DTB_IMG): dtbs
++	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
++
++all: $(KBUILD_DTB_IMG)
+ endif
+ 
+ PHONY += vdso_install
+diff --git a/arch/arm64/boot/.gitignore b/arch/arm64/boot/.gitignore
+index 08375ead9ed2..e5b241250d9e 100644
+--- a/arch/arm64/boot/.gitignore
++++ b/arch/arm64/boot/.gitignore
+@@ -3,3 +3,4 @@ Image-dtb
+ Image.gz
+ Image.gz-dtb
+ dtbo.img
++dtb.img
+diff --git a/arch/arm64/boot/Makefile b/arch/arm64/boot/Makefile
+index 7e1ba2afb907..131dbac9d8e1 100644
+--- a/arch/arm64/boot/Makefile
++++ b/arch/arm64/boot/Makefile
+@@ -18,7 +18,7 @@ include $(srctree)/arch/arm64/boot/dts/Makefile
+ 
+ OBJCOPYFLAGS_Image :=-O binary -R .note -R .note.gnu.build-id -R .comment -S
+ 
+-targets := Image Image.bz2 Image.gz Image.lz4 Image.lzma Image.lzo dtbo.img
++targets := Image Image.bz2 Image.gz Image.lz4 Image.lzma Image.lzo dtbo.img dtb.img
+ 
+ DTB_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES))
+ ifneq ($(DTB_NAMES),)
+@@ -73,6 +73,9 @@ $(obj)/Image.gz-dtb: $(obj)/Image.gz $(DTB_OBJS) FORCE
+ $(obj)/dtbo.img: $(DTBO_OBJS) FORCE
+ 	$(call if_changed,mkdtimg)
+ 
++$(obj)/dtb.img: $(DTB_OBJS) FORCE
++	$(call if_changed,cat)
++	
+ install:
+ 	$(CONFIG_SHELL) $(srctree)/$(src)/install.sh $(KERNELRELEASE) \
+ 	$(obj)/Image System.map "$(INSTALL_PATH)"

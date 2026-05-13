@@ -1,0 +1,31 @@
+From 95816dff2ecc7ddd907a56537946b5cf1e864953 Mon Sep 17 00:00:00 2001
+From: basamaryan <basam.aryan@gmail.com>
+Date: Sun, 19 May 2024 17:49:19 +0200
+Subject: [PATCH] power: supply: ln8000_charger: Drop the use of hardware_info
+
+Change-Id: I74ebc4475720eb26fa66ca3269d08551fed3ff19
+Signed-off-by: Pranav Vashi <neobuddy89@gmail.com>
+---
+ drivers/power/supply/ti/ln8000_charger.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/power/supply/ti/ln8000_charger.c b/drivers/power/supply/ti/ln8000_charger.c
+index 913b11502a83..a1e092654672 100644
+--- a/drivers/power/supply/ti/ln8000_charger.c
++++ b/drivers/power/supply/ti/ln8000_charger.c
+@@ -35,7 +35,6 @@
+ #include <linux/sysfs.h>
+ #include <linux/debugfs.h>
+ #include <linux/types.h>
+-#include <linux/hardware_info.h>
+ //#include <linux/power/ln8000_charger.h>
+ #include "ln8000_charger.h"
+ #include "cp_qc30.h"
+@@ -1647,7 +1646,6 @@ static int ln8000_probe(struct i2c_client *client, const struct i2c_device_id *i
+     }
+ 
+     determine_initial_status(info);
+-    hardwareinfo_set_prop(HARDWARE_SUB_CHARGER_MASTER, "LN8000_CHARGER_MASTER");
+ 
+     return 0;
+ 

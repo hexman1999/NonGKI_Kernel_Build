@@ -1,0 +1,33 @@
+From 330c60abc13530bd05287f9e5395d283ebfd6d0b Mon Sep 17 00:00:00 2001
+From: basamaryan <basam.aryan@gmail.com>
+Date: Sun, 19 May 2024 17:52:48 +0200
+Subject: [PATCH] power: supply: ln8000_charger: Switch to bq2597x-standalone
+
+Change-Id: I7e736b88453ca532113126f9e91003c9d68a968b
+Signed-off-by: Pranav Vashi <neobuddy89@gmail.com>
+---
+ drivers/power/supply/ti/ln8000_charger.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/power/supply/ti/ln8000_charger.c b/drivers/power/supply/ti/ln8000_charger.c
+index a1e092654672..d69fdff8a5af 100644
+--- a/drivers/power/supply/ti/ln8000_charger.c
++++ b/drivers/power/supply/ti/ln8000_charger.c
+@@ -952,7 +952,7 @@ static int ln8000_charger_get_property(struct power_supply *psy,
+         }
+         break;
+     case POWER_SUPPLY_PROP_MODEL_NAME:
+-        val->strval = "bq2597x-master";
++        val->strval = "bq2597x-standalone";
+         break;
+     default:
+         return -EINVAL;
+@@ -1535,7 +1535,7 @@ static int ln8000_psy_register(struct ln8000_info *info)
+ {
+     info->psy_cfg.drv_data = info;
+     info->psy_cfg.of_node  = info->client->dev.of_node;
+-    info->psy_desc.name 		= "bq2597x-master";
++    info->psy_desc.name 		= "bq2597x-standalone";
+     info->psy_desc.type 		= POWER_SUPPLY_TYPE_MAINS;
+     info->psy_desc.properties	= ln8000_charger_props;
+     info->psy_desc.num_properties = ARRAY_SIZE(ln8000_charger_props);

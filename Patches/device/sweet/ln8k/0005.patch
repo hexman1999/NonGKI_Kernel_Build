@@ -1,0 +1,339 @@
+From 0477c7006b41a1763b3314af9eb300491b91fc25 Mon Sep 17 00:00:00 2001
+From: basamaryan <basam.aryan@gmail.com>
+Date: Fri, 17 May 2024 00:20:55 +0200
+Subject: [PATCH] power: supply: Import changes for ln8000
+
+Partially taken nabu-r-oss and sweet_k6a-r-oss then adapted for sweet
+
+Change-Id: I6b3a7fc0117a5fd33a57e4e29a8d71bd0aaa1c8e
+Signed-off-by: Pranav Vashi <neobuddy89@gmail.com>
+---
+ drivers/power/supply/qcom/battery.c         | 17 ++++++++-
+ drivers/power/supply/qcom/qpnp-qg.c         | 29 +++++++++++++++-
+ drivers/power/supply/qcom/qpnp-smb5.c       |  6 ++--
+ drivers/power/supply/qcom/smb5-lib.c        | 25 ++++++++++++--
+ drivers/power/supply/qcom/step-chg-jeita.c  |  3 ++
+ drivers/power/supply/ti/cp_qc30.c           | 18 +++++++++-
+ drivers/power/supply/ti/pd_policy_manager.c | 38 ++++++++++++++++++---
+ 7 files changed, 123 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/power/supply/qcom/battery.c b/drivers/power/supply/qcom/battery.c
+index 1e5893a31804..429d6426d190 100644
+--- a/drivers/power/supply/qcom/battery.c
++++ b/drivers/power/supply/qcom/battery.c
+@@ -1222,6 +1222,8 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
+ 	struct pl_data *chip = data;
+ 	union power_supply_propval pval = {0, };
+ 	int rc = 0;
++	static struct power_supply *cp_psy = NULL;
++	bool cp_charge_enabled = false;
+ 
+ 	if (fv_uv < 0)
+ 		return 0;
+@@ -1229,7 +1231,20 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
+ 	if (!chip->main_psy)
+ 		return 0;
+ 
+-	pval.intval = fv_uv;
++	cp_psy = power_supply_get_by_name("bq2597x-standalone");
++	if (cp_psy) {
++		rc = power_supply_get_property(cp_psy,
++				POWER_SUPPLY_PROP_CHARGING_ENABLED, &pval);
++		if (!rc)
++			cp_charge_enabled = pval.intval;
++	}
++
++	if (cp_charge_enabled) {
++		pr_err("%s cp_enable, force fv : 4790000\n", __func__);
++		pval.intval = 4790000;
++	} else {
++		pval.intval = fv_uv;
++	}
+ 
+ 	rc = power_supply_set_property(chip->main_psy,
+ 			POWER_SUPPLY_PROP_VOLTAGE_MAX, &pval);
+diff --git a/drivers/power/supply/qcom/qpnp-qg.c b/drivers/power/supply/qcom/qpnp-qg.c
+index 1f19d475305b..9d753c81489e 100644
+--- a/drivers/power/supply/qcom/qpnp-qg.c
++++ b/drivers/power/supply/qcom/qpnp-qg.c
+@@ -2099,6 +2099,8 @@ static int qg_reset(struct qpnp_qg *chip)
+ #define FFC_CHG_TERM_SWD_CURRENT	-600
+ #define FFC_CHG_TERM_NVT_CURRENT	-550
+ #define FFC_BATT_FULL_CURRENT	920000
++#define FFC_BATT_FULL_NVT_CURRENT	925000
++#define FFC_BATT_FULL_SWD_CURRENT	880000
+ #else
+ #define FFC_CHG_TERM_CURRENT	-830
+ #define FFC_BATT_FULL_CURRENT	1150000
+@@ -2147,7 +2149,17 @@ static int qg_get_ffc_iterm_for_qg(struct qpnp_qg *chip)
+ 			ffc_full_current = LOW_TEMP_FFC_BATT_FULL_CURRENT;
+ 		}
+ 	} else {
++#ifdef CONFIG_K6_CHARGE
++		if (is_batt_vendor_nvt){
++			ffc_full_current = FFC_BATT_FULL_NVT_CURRENT;
++			pr_err("ffc_FULL_current nvt is 925\n", rc);
++		}else{
++			ffc_full_current = FFC_BATT_FULL_SWD_CURRENT;
++			pr_err("ffc_FULL_current swd is 880\n", rc);
++		}
++#else
+ 		ffc_full_current = FFC_BATT_FULL_CURRENT;
++#endif
+ 	}
+ 	pr_info("ffc_full_current = %d\n", ffc_full_current);
+ 
+@@ -3143,6 +3155,13 @@ static void qg_status_change_work(struct work_struct *work)
+ 		goto out;
+ 	}
+ 
++	if (!chip->usb_psy) {
++		chip->usb_psy = power_supply_get_by_name("usb");
++		if (!chip->usb_psy) {
++			pr_err("Failed to get usb_psy\n");
++		}
++	}
++
+ 	rc = qg_battery_status_update(chip);
+ 	if (rc < 0)
+ 		pr_err("Failed to process battery status update rc=%d\n", rc);
+@@ -3158,8 +3177,16 @@ static void qg_status_change_work(struct work_struct *work)
+ 			POWER_SUPPLY_PROP_STATUS, &prop);
+ 	if (rc < 0)
+ 		pr_err("Failed to get charger status, rc=%d\n", rc);
+-	else
++	else {
++		if (chip->charge_status != prop.intval) {
++			pr_err("%s last_status:%d, curr_status:%d\n", __func__, chip->charge_status, prop.intval);
++			if (chip->usb_psy) {
++				msleep(200);
++				power_supply_changed(chip->usb_psy);
++			}
++		}
+ 		chip->charge_status = prop.intval;
++	}
+ 
+ 	rc = power_supply_get_property(chip->batt_psy,
+ 			POWER_SUPPLY_PROP_CHARGE_DONE, &prop);
+diff --git a/drivers/power/supply/qcom/qpnp-smb5.c b/drivers/power/supply/qcom/qpnp-smb5.c
+index e3dd377bfd1a..21e6e04c52ce 100644
+--- a/drivers/power/supply/qcom/qpnp-smb5.c
++++ b/drivers/power/supply/qcom/qpnp-smb5.c
+@@ -509,8 +509,7 @@ static int smb5_parse_dt(struct smb5 *chip)
+ 	chg->pd_not_supported = chg->pd_not_supported ||
+ 			of_property_read_bool(node, "qcom,usb-pd-disable");
+ 
+-	chg->lpd_disabled = chg->lpd_disabled ||
+-			of_property_read_bool(node, "qcom,lpd-disable");
++	chg->lpd_disabled = of_property_read_bool(node, "qcom,lpd-disable");
+ 
+ 	chg->qc_class_ab = of_property_read_bool(node,
+ 				"qcom,distinguish-qc-class-ab");
+@@ -1184,7 +1183,8 @@ static int smb5_usb_get_prop(struct power_supply *psy,
+ 		break;
+ 	case POWER_SUPPLY_PROP_ONLINE:
+ 		rc = smblib_get_prop_usb_online(chg, val);
+-		if (!val->intval)
++		if ((!val->intval) &&
++			(!chg->pd_hard_reset && chg->pd_active == POWER_SUPPLY_PD_INACTIVE))
+ 			break;
+ 
+ 		if (((chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_DEFAULT) ||
+diff --git a/drivers/power/supply/qcom/smb5-lib.c b/drivers/power/supply/qcom/smb5-lib.c
+index 19ce51c3c41b..a34601ea5235 100644
+--- a/drivers/power/supply/qcom/smb5-lib.c
++++ b/drivers/power/supply/qcom/smb5-lib.c
+@@ -744,6 +744,9 @@ int smblib_set_charge_param(struct smb_charger *chg,
+ 	if (!chg->cp_psy)
+ 		chg->cp_psy = power_supply_get_by_name("bq2597x-standalone");
+ 
++	if (!chg->cp_psy)
++		chg->cp_psy = power_supply_get_by_name("ln8000");
++
+ 	if (chg->cp_psy && param->reg == CHGR_FLOAT_VOLTAGE_CFG_REG) {
+ 		power_supply_get_property(chg->cp_psy, POWER_SUPPLY_PROP_CP_VBAT_CALIBRATE, &val);
+ 		if (val.intval >= -20000 && val.intval <= 20000) {
+@@ -913,6 +916,15 @@ int smblib_set_fastcharge_mode(struct smb_charger *chg, bool enable)
+ 		enable = false;
+ #endif
+ 
++	rc = power_supply_get_property(chg->usb_psy,
++				POWER_SUPPLY_PROP_PD_AUTHENTICATION, &pval);
++	if (rc < 0) {
++		smblib_err(chg, "Couldn't get pd authentic:%d\n", rc);
++		return rc;
++	}
++	if (!pval.intval)
++		enable = false;
++
+ 	/*if soc > 90 do not set fastcharge flag*/
+ 	rc = power_supply_get_property(chg->bms_psy,
+ 			POWER_SUPPLY_PROP_CAPACITY, &pval);
+@@ -2659,6 +2671,9 @@ static bool is_bq25970_available(struct smb_charger *chg)
+ 	if (!chg->cp_psy)
+ 		chg->cp_psy = power_supply_get_by_name("bq2597x-standalone");
+ 
++	if (!chg->cp_psy)
++		chg->cp_psy = power_supply_get_by_name("ln8000");
++
+ 	if (!chg->cp_psy)
+ 		return false;
+ 
+@@ -6605,9 +6620,13 @@ static int check_reduce_fcc_condition(struct smb_charger *chg)
+ 
+ 	if (!chg->cp_psy) {
+ 		chg->cp_psy = power_supply_get_by_name("bq2597x-standalone");
+-		if (!chg->cp_psy)
+-			pr_err("cp_psy not found\n");
+-			return 0;
++		if (!chg->cp_psy){
++			chg->cp_psy = power_supply_get_by_name("ln8000");
++			if (!chg->cp_psy){
++				pr_err("cp_psy not found\n");
++				return 0;
++			}
++		}
+ 	}
+ 
+ 	rc = power_supply_get_property(chg->cp_psy,
+diff --git a/drivers/power/supply/qcom/step-chg-jeita.c b/drivers/power/supply/qcom/step-chg-jeita.c
+index ff45e3bda74a..9ab62e395662 100644
+--- a/drivers/power/supply/qcom/step-chg-jeita.c
++++ b/drivers/power/supply/qcom/step-chg-jeita.c
+@@ -146,6 +146,9 @@ static bool is_bq25970_available(struct step_chg_info *chip)
+ 	if (!chip->bq_psy)
+ 		chip->bq_psy = power_supply_get_by_name("bq2597x-standalone");
+ 
++        if (!chip->bq_psy)
++                chip->bq_psy = power_supply_get_by_name("ln8000");
++
+ 	if (!chip->bq_psy)
+ 		return false;
+ 
+diff --git a/drivers/power/supply/ti/cp_qc30.c b/drivers/power/supply/ti/cp_qc30.c
+index 60562a34e4e5..0a8f491203a3 100644
+--- a/drivers/power/supply/ti/cp_qc30.c
++++ b/drivers/power/supply/ti/cp_qc30.c
+@@ -185,6 +185,13 @@ static struct power_supply *cp_get_fc_psy(void)
+ 			pm_state.fc_psy = power_supply_get_by_name("bq2597x-master");
+ 		else
+ 			pm_state.fc_psy = power_supply_get_by_name("bq2597x-standalone");
++
++		if (!pm_state.fc_psy)
++		{
++			pm_state.fc_psy = power_supply_get_by_name("ln8000");
++			if (!pm_state.fc_psy)
++				pr_err("cp_psy not found\n");
++		}
+ 	}
+ 
+ 	return pm_state.fc_psy;
+@@ -1109,7 +1116,13 @@ void cp_statemachine(unsigned int port)
+ 		} else {
+ 			pr_err("vvbus:%d, tuned above expected voltage, retry_times:%d\n",
+ 					pm_state.bq2597x.vbus_volt, tune_vbus_retry);
+-			cp_move_state(CP_STATE_FLASH2_ENTRY_3);
++			if (pm_state.usb_type == POWER_SUPPLY_TYPE_USB_HVDCP_3 && pm_state.bq2597x.vbus_volt > 11000) {
++				cp_move_state(CP_STATE_SW_ENTRY);
++				cp_limit_sw(false);
++				cp_set_fake_hvdcp3(true);
++			} else {
++				cp_move_state(CP_STATE_FLASH2_ENTRY_3);
++			}
+ 			break;
+ 		}
+ #else
+@@ -1252,6 +1265,9 @@ static void cp_workfunc(struct work_struct *work)
+ 	if (pm_state.usb_present == 0) {
+ 		cp_set_qc_bus_protections(HVDCP3_NONE);
+ 		cp_set_fake_hvdcp3(false);
++#ifdef CONFIG_K6_CHARGE
++		pm_state.state = CP_STATE_DISCONNECT;
++#endif
+ 		return;
+ 	}
+ 
+diff --git a/drivers/power/supply/ti/pd_policy_manager.c b/drivers/power/supply/ti/pd_policy_manager.c
+index 729b11249934..114541187a41 100644
+--- a/drivers/power/supply/ti/pd_policy_manager.c
++++ b/drivers/power/supply/ti/pd_policy_manager.c
+@@ -32,7 +32,7 @@
+ #define PD_SRC_PDO_TYPE_VARIABLE	2
+ #define PD_SRC_PDO_TYPE_AUGMENTED	3
+ 
+-#define BATT_MAX_CHG_VOLT		4400
++#define BATT_MAX_CHG_VOLT		4450
+ #define BATT_FAST_CHG_CURR		6000
+ #define	BUS_OVP_THRESHOLD		12000
+ #define	BUS_OVP_ALARM_THRESHOLD		9500
+@@ -143,6 +143,30 @@ static int pd_get_batt_current_thermal_level(struct usbpd_pm *pdpm, int *level)
+ 	return rc;
+ }
+ 
++/* get capacity from battery power supply property */
++static int pd_get_batt_capacity(struct usbpd_pm *pdpm, int *capacity)
++{
++	union power_supply_propval pval = {0,};
++	int rc = 0;
++
++	usbpd_check_batt_psy(pdpm);
++
++	if (!pdpm->sw_psy)
++		return -ENODEV;
++
++	rc = power_supply_get_property(pdpm->sw_psy,
++				POWER_SUPPLY_PROP_CAPACITY, &pval);
++	if (rc < 0) {
++		pr_info("Couldn't get battery capacity:%d\n", rc);
++		return rc;
++	}
++
++	pr_info("battery capacity is : %d\n", pval.intval);
++
++	*capacity = pval.intval;
++	return rc;
++}
++
+ /* determine whether to disable cp according to jeita status */
+ static bool pd_disable_cp_by_jeita_status(struct usbpd_pm *pdpm)
+ {
+@@ -338,7 +362,11 @@ static void usbpd_check_cp_psy(struct usbpd_pm *pdpm)
+ 		else
+ 			pdpm->cp_psy = power_supply_get_by_name("bq2597x-standalone");
+ 		if (!pdpm->cp_psy)
+-			pr_err("cp_psy not found\n");
++		{
++			pdpm->cp_psy = power_supply_get_by_name("ln8000");
++			if (!pdpm->cp_psy)
++				pr_err("cp_psy not found\n");
++		}
+ 	}
+ }
+ 
+@@ -1136,6 +1164,7 @@ static int usbpd_pm_sm(struct usbpd_pm *pdpm)
+ 	int thermal_level = 0;
+ 	static int curr_fcc_lmt, curr_ibus_lmt, retry_count;
+ 	static int request_fail_count = 0;
++	int capacity = 0;
+ 
+ 	switch (pdpm->state) {
+ 	case PD_PM_STATE_ENTRY:
+@@ -1148,6 +1177,7 @@ static int usbpd_pm_sm(struct usbpd_pm *pdpm)
+ 		pdpm->is_temp_out_fc2_range = pd_disable_cp_by_jeita_status(pdpm);
+ 		pr_info("is_temp_out_fc2_range:%d\n", pdpm->is_temp_out_fc2_range);
+ 
++		pd_get_batt_capacity(pdpm, &capacity);
+ 		effective_fcc_val = usbpd_get_effective_fcc_val(pdpm);
+ 
+ 		if (effective_fcc_val > 0) {
+@@ -1161,8 +1191,8 @@ static int usbpd_pm_sm(struct usbpd_pm *pdpm)
+ 
+ 		if (pdpm->cp.vbat_volt < pm_config.min_vbat_for_cp) {
+ 			pr_info("batt_volt %d, waiting...\n", pdpm->cp.vbat_volt);
+-		} else if (pdpm->cp.vbat_volt > pm_config.bat_volt_lp_lmt - 50) {
+-			pr_info("batt_volt %d is too high for cp, charging with switch charger\n",
++		} else if (pdpm->cp.vbat_volt > pm_config.bat_volt_lp_lmt - 50 || capacity > 95) {
++			pr_info("batt_volt %d or capacity is too high for cp, charging with switch charger\n",
+ 					pdpm->cp.vbat_volt);
+ 			usbpd_pm_move_state(pdpm, PD_PM_STATE_FC2_EXIT);
+ 			if (pm_config.bat_volt_lp_lmt < BAT_VOLT_LOOP_LMT)

@@ -113,11 +113,11 @@ jobs:
           export DEVICE_IMPORT="sweet" # Using "sweet" to ensure LTO, all LN8K, and KPATCH patches are applied
           export MAIN_DEFCONFIG="arch/arm64/configs/sweet_defconfig"
           
-          echo "[+] Applying RiaruModa device patches for $DEVICE_IMPORT..."
+          echo "[+] Applying local RiaruModa device patches for $DEVICE_IMPORT..."
           
-          # Run the device patches script (contains LN8000, LTO, and KPATCH fixes)
-          chmod +x $GITHUB_WORKSPACE/riarumoda/perf_neon-builder/scripts/apply-device-patches.sh
-          bash $GITHUB_WORKSPACE/riarumoda/perf_neon-builder/scripts/apply-device-patches.sh
+          # Run the ported device patches script
+          chmod +x /tmp/Patches/apply-device-patches.sh
+          bash /tmp/Patches/apply-device-patches.sh
           
           if [[ "${{ env.HOOK_METHOD }}" == "inline" ]]; then
             echo "[+] Applying SuSFS inline hook patches..."
