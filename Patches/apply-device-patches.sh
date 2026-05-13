@@ -78,18 +78,22 @@ case "$DEVICE_IMPORT" in
         grep -q "kernelsu" drivers/Makefile || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> drivers/Makefile
         grep -q "drivers/kernelsu/Kconfig" drivers/Kconfig || sed -i '$i source "drivers/kernelsu/Kconfig"' drivers/Kconfig
         
-        # Define missing types and macros globally for KSU
-        # Fix syscall_fn_t error
-        if [ -f "drivers/kernelsu/hook/syscall_hook.h" ]; then
-            sed -i '1i typedef void (*syscall_fn_t)(void);' drivers/kernelsu/hook/syscall_hook.h
-        fi
-
-        # Fix MODULE_IMPORT_NS and other modern macros
-        find drivers/kernelsu -name "*.c" -o -name "*.h" | xargs sed -i '1i #ifndef MODULE_IMPORT_NS\n#define MODULE_IMPORT_NS(ns)\n#endif'
+        # Path to actual source (build-ready clones it to KernelSU folder in workspace root)
+        KSU_SRC="../KernelSU/kernel"
         
-        # Specific fix for the init.c error you saw
-        if [ -f "drivers/kernelsu/core/init.c" ]; then
-            sed -i 's/^MODULE_IMPORT_NS/#//g' drivers/kernelsu/core/init.c
+        if [ -d "$KSU_SRC" ]; then
+            echo "--- Patching KSU source at $KSU_SRC"
+            # Fix syscall_fn_t error
+            if [ -f "$KSU_SRC/hook/syscall_hook.h" ]; then
+                sed -i '1i typedef void (*syscall_fn_t)(void);' "$KSU_SRC/hook/syscall_hook.h"
+            fi
+
+            # Fix MODULE_IMPORT_NS error (not supported in 4.14)
+            # We delete the line entirely as it's the safest way to avoid implicit-int errors
+            find "$KSU_SRC" -name "*.c" -exec sed -i '/MODULE_IMPORT_NS/d' {} +
+        else
+            echo "--- Warning: KSU source not found at $KSU_SRC, trying local drivers/kernelsu"
+            find drivers/kernelsu -name "*.c" -exec sed -i '/MODULE_IMPORT_NS/d' {} +
         fi
 
         # Ensure it's enabled in defconfig (removing any 'is not set' lines first)
