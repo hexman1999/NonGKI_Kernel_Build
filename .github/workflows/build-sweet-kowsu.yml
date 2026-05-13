@@ -118,13 +118,6 @@ jobs:
           # Run the ported device patches script
           chmod +x /tmp/Patches/apply-device-patches.sh
           bash /tmp/Patches/apply-device-patches.sh
-          
-          if [[ "${{ env.HOOK_METHOD }}" == "inline" ]]; then
-            echo "[+] Applying SuSFS inline hook patches..."
-            # Note: Patches folder is moved to /tmp/ by build-env action
-            chmod +x /tmp/Patches/susfs_inline_hook_patches.sh
-            bash /tmp/Patches/susfs_inline_hook_patches.sh
-          fi
         shell: bash
 
       - name: 🚀 Build Process
