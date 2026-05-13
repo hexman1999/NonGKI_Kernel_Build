@@ -28,11 +28,11 @@ env:
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT: false
 
-  KERNELSU_SOURCE : "https://github.com/KOWX712/KernelSU"
-  KERNELSU_BRANCH : "master"
+  KERNELSU_SOURCE: "https://github.com/KOWX712/KernelSU"
+  KERNELSU_BRANCH: "master"
 
-  KERNELSU_AUTO_GET : "false"
-  KERNELSU_AUTO_FORK : "sukisu"
+  KERNELSU_AUTO_GET: "false"
+  KERNELSU_AUTO_FORK: "sukisu"
 
   SUSFS_ENABLE : true
   SUSFS_FIXED : false
