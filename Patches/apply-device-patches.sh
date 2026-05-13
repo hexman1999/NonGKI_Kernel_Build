@@ -78,8 +78,15 @@ case "$DEVICE_IMPORT" in
         
         # Ensure it's enabled in defconfig (removing any 'is not set' lines first)
         sed -i '/CONFIG_KSU/d' "$MAIN_DEFCONFIG"
+        sed -i '/CONFIG_KPROBES/d' "$MAIN_DEFCONFIG"
+        sed -i '/CONFIG_KALLSYMS/d' "$MAIN_DEFCONFIG"
+        
         echo "CONFIG_KSU=y" >> "$MAIN_DEFCONFIG"
         echo "CONFIG_KSU_SUSFS=y" >> "$MAIN_DEFCONFIG"
+        echo "CONFIG_KPROBES=y" >> "$MAIN_DEFCONFIG"
+        echo "CONFIG_KALLSYMS=y" >> "$MAIN_DEFCONFIG"
+        echo "CONFIG_KALLSYMS_ALL=y" >> "$MAIN_DEFCONFIG"
+        echo "CONFIG_EXT4_FS=y" >> "$MAIN_DEFCONFIG"
         ;;
     *)
         echo "No local patches configured for $DEVICE_IMPORT."
