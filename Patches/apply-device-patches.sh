@@ -70,6 +70,16 @@ case "$DEVICE_IMPORT" in
             chmod +x /tmp/Patches/setup-bbg.sh
             bash /tmp/Patches/setup-bbg.sh
         fi
+
+        echo "-- Ensuring KernelSU (KowSU) is enabled..."
+        # Force hooks in case build-ready missed them or they were wiped
+        grep -q "kernelsu" drivers/Makefile || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> drivers/Makefile
+        grep -q "drivers/kernelsu/Kconfig" drivers/Kconfig || sed -i '$i source "drivers/kernelsu/Kconfig"' drivers/Kconfig
+        
+        # Ensure it's enabled in defconfig (removing any 'is not set' lines first)
+        sed -i '/CONFIG_KSU/d' "$MAIN_DEFCONFIG"
+        echo "CONFIG_KSU=y" >> "$MAIN_DEFCONFIG"
+        echo "CONFIG_KSU_SUSFS=y" >> "$MAIN_DEFCONFIG"
         ;;
     *)
         echo "No local patches configured for $DEVICE_IMPORT."
