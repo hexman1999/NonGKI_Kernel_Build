@@ -74,18 +74,22 @@ case "$DEVICE_IMPORT" in
         fi
 
         echo "-- Ensuring KernelSU (KowSU) 4.14 Compatibility..."
-        # Force hooks in case build-ready missed them or they were wiped
+        # Force hooks
         grep -q "kernelsu" drivers/Makefile || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> drivers/Makefile
         grep -q "drivers/kernelsu/Kconfig" drivers/Kconfig || sed -i '$i source "drivers/kernelsu/Kconfig"' drivers/Kconfig
         
+        # Define missing types and macros globally for KSU
         # Fix syscall_fn_t error
         if [ -f "drivers/kernelsu/hook/syscall_hook.h" ]; then
             sed -i '1i typedef void (*syscall_fn_t)(void);' drivers/kernelsu/hook/syscall_hook.h
         fi
 
-        # Fix MODULE_IMPORT_NS error (not supported in 4.14)
+        # Fix MODULE_IMPORT_NS and other modern macros
+        find drivers/kernelsu -name "*.c" -o -name "*.h" | xargs sed -i '1i #ifndef MODULE_IMPORT_NS\n#define MODULE_IMPORT_NS(ns)\n#endif'
+        
+        # Specific fix for the init.c error you saw
         if [ -f "drivers/kernelsu/core/init.c" ]; then
-            sed -i 's/MODULE_IMPORT_NS/#//g' drivers/kernelsu/core/init.c
+            sed -i 's/^MODULE_IMPORT_NS/#//g' drivers/kernelsu/core/init.c
         fi
 
         # Ensure it's enabled in defconfig (removing any 'is not set' lines first)
