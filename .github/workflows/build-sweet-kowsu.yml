@@ -71,7 +71,7 @@ env:
   KPM_INLINE: "false"
   KPM_KPATCH_NEXT: "false"
   
-  BASEBAND_GUARD_ENABLE: "false"
+  BASEBAND_GUARD_ENABLE: "true"
   HIDE_STUFF: "false"
   GENERATE_DTB: "false"
   GENERATE_CHIP: "qcom"
