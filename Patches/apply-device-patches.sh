@@ -40,6 +40,8 @@ case "$DEVICE_IMPORT" in
     sweet)
         echo "-- Applying LN8K patches..."
         apply_local_patches "$PATCH_ROOT/ln8k"
+        # Disable generic charger to ensure LN8K is used
+        sed -i '/CONFIG_BQ25890_CHARGER/d' "$MAIN_DEFCONFIG"
         echo "CONFIG_CHARGER_LN8000=y" >> "$MAIN_DEFCONFIG"
         # Disable MODVERSIONS as it conflicts with LTO on 4.14
         sed -i 's/CONFIG_MODVERSIONS=y/CONFIG_MODVERSIONS=n/g' "$MAIN_DEFCONFIG"
@@ -71,11 +73,21 @@ case "$DEVICE_IMPORT" in
             bash /tmp/Patches/setup-bbg.sh
         fi
 
-        echo "-- Ensuring KernelSU (KowSU) is enabled..."
+        echo "-- Ensuring KernelSU (KowSU) 4.14 Compatibility..."
         # Force hooks in case build-ready missed them or they were wiped
         grep -q "kernelsu" drivers/Makefile || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> drivers/Makefile
         grep -q "drivers/kernelsu/Kconfig" drivers/Kconfig || sed -i '$i source "drivers/kernelsu/Kconfig"' drivers/Kconfig
         
+        # Fix syscall_fn_t error
+        if [ -f "drivers/kernelsu/hook/syscall_hook.h" ]; then
+            sed -i '1i typedef void (*syscall_fn_t)(void);' drivers/kernelsu/hook/syscall_hook.h
+        fi
+
+        # Fix MODULE_IMPORT_NS error (not supported in 4.14)
+        if [ -f "drivers/kernelsu/core/init.c" ]; then
+            sed -i 's/MODULE_IMPORT_NS/#//g' drivers/kernelsu/core/init.c
+        fi
+
         # Ensure it's enabled in defconfig (removing any 'is not set' lines first)
         sed -i '/CONFIG_KSU/d' "$MAIN_DEFCONFIG"
         sed -i '/CONFIG_KPROBES/d' "$MAIN_DEFCONFIG"
