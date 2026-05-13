@@ -42,8 +42,8 @@ case "$DEVICE_IMPORT" in
         apply_local_patches "$PATCH_ROOT/ln8k"
         echo "CONFIG_CHARGER_LN8000=y" >> "$MAIN_DEFCONFIG"
 
-        echo "-- Applying DTBO patches..."
-        apply_local_patches "$PATCH_ROOT/dtbo"
+        # echo "-- Applying DTBO patches..."
+        # apply_local_patches "$PATCH_ROOT/dtbo"
 
         echo "-- Applying LTO fix..."
         apply_single_patch "$PATCH_ROOT/fix_lto.patch"
